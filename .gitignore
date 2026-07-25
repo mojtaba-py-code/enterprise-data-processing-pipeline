@@ -26,6 +26,9 @@ ENV/
 *.sqlite
 *.sqlite3
 
+# Generated pipeline output (keep sample input under data/sample)
+data/output/
+
 # Test / tooling
 .pytest_cache/
 .coverage
