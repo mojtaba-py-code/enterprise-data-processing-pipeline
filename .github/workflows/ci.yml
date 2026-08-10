@@ -33,3 +33,21 @@ jobs:
 
       - name: Test (pytest)
         run: pytest -q --cov=pipeline --cov-report=term-missing
+
+  docker:
+    name: Build container image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t enterprise-data-pipeline:ci .
+
+      - name: Run the example pipeline in the image
+        run: docker run --rm enterprise-data-pipeline:ci
+
+      - name: Verify the image does not run as root
+        run: |
+          user=$(docker run --rm --entrypoint id enterprise-data-pipeline:ci -u)
+          test "$user" != "0" || { echo "::error::image runs as root"; exit 1; }

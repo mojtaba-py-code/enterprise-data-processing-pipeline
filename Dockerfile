@@ -15,5 +15,12 @@ RUN pip install --no-cache-dir .
 COPY configs ./configs
 COPY data/sample ./data/sample
 
+# Drop root: the pipeline only reads its config and writes its own output, so
+# nothing here needs privileges. A container escape then lands on an unprivileged
+# account rather than root on the host.
+RUN useradd --create-home --uid 10001 edp \
+    && chown -R edp:edp /app
+USER edp
+
 ENTRYPOINT ["edp"]
 CMD ["run", "--config", "configs/pipeline.example.yaml"]
