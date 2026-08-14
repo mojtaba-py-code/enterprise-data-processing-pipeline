@@ -13,7 +13,7 @@ authors = [{ name = "Mojtaba" }]
 keywords = ["etl", "data-pipeline", "data-engineering", "pandas", "enterprise"]
 dependencies = [
     "pandas>=2.0",
-    "pydantic>=2.0",
+    "pydantic>=2.13",
     "PyYAML>=6.0",
 ]
 
