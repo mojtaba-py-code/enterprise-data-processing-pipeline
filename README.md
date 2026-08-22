@@ -22,7 +22,7 @@ never requires touching the core.
 - 🛟 **Error policies** — `fail`, `drop`, or `quarantine` invalid rows to a separate file.
 - 🔒 **Safe by design** — declarative transforms only; a config file can never execute arbitrary code.
 - 📈 **Structured logging** — human-friendly text or JSON for log aggregators.
-- 🧪 **Fully tested & typed** — 58 tests, `ruff`-clean, `mypy`-clean.
+- 🧪 **Fully tested & typed** — 76 tests, `ruff`-clean, `mypy`-clean.
 - 🐳 **Docker + CI** — reproducible runs and a GitHub Actions matrix (3.11 / 3.12).
 
 ---
@@ -145,20 +145,50 @@ observability:
   log_format: text           # text | json
 ```
 
+### Plugin options
+
 Each plugin owns the schema of its own `options` block, and the block is
 validated against it when the config is loaded — a misspelled key such as
 `delimeter:` is an error before the first row is read, never a silently
-different parse. A `csv` source accepts the common `pandas.read_csv`
-keywords (`sep`, `delimiter`, `header`, `names`, `usecols`, `dtype`,
-`encoding`, `skiprows`, `nrows`, `na_values`, `keep_default_na`,
-`parse_dates`, `index_col`, `comment`, `quotechar`, `escapechar`,
-`thousands`, `decimal`, `compression`, `on_bad_lines`); a `json` source
-accepts `lines`.
+different parse. Every list on this page is therefore exhaustive rather than
+illustrative: a key that is not on it is rejected.
+
+| Plugin | Role | Accepted `options` |
+|--------|------|--------------------|
+| `csv` | source | `path`, plus the `read_csv` keywords below |
+| `csv` | sink | `path`, `index` |
+| `json` | source | `path`, `lines` |
+| `json` | sink | `path`, `orient`, `lines`, `indent` |
+| `memory` | source / sink | `key` |
+
+A `csv` source forwards every option except `path` to `pandas.read_csv`, and
+accepts exactly these keywords:
+
+`cache_dates`, `comment`, `compression`, `date_format`, `dayfirst`,
+`decimal`, `delimiter`, `doublequote`, `dtype`, `dtype_backend`, `encoding`,
+`encoding_errors`, `engine`, `escapechar`, `false_values`,
+`float_precision`, `header`, `index_col`, `keep_default_na`,
+`lineterminator`, `low_memory`, `na_filter`, `na_values`, `names`, `nrows`,
+`on_bad_lines`, `parse_dates`, `quotechar`, `quoting`, `sep`,
+`skip_blank_lines`, `skipfooter`, `skipinitialspace`, `skiprows`,
+`thousands`, `true_values`, `usecols`
+
+Anything else `read_csv` takes is refused deliberately, on one rule — an
+option may describe the data, never reach past it. `converters` takes a
+callable, and a config here can never execute Python. `storage_options`
+carries filesystem credentials and aims the read at a remote host.
+`iterator` and `chunksize` make `read_csv` return a reader instead of a
+DataFrame, breaking the connector halfway through a run. `dialect` names an
+object in the `csv` module rather than describing the file, and everything it
+sets is already reachable above. `memory_map` tunes how the file handle is
+opened, not how the bytes are parsed.
 
 ### Built-in transforms
 
-| Transform | Purpose | Key options |
-|-----------|---------|-------------|
+Complete, as above — these are the only keys each transform accepts.
+
+| Transform | Purpose | Options |
+|-----------|---------|---------|
 | `rename` | Rename columns | `columns: {old: new}` |
 | `select` | Keep/reorder columns | `columns: [..]` |
 | `drop` | Drop columns | `columns: [..]` |

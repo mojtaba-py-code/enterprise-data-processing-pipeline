@@ -23,31 +23,86 @@ class CsvReaderOptions(_PathOptions):
     """The ``pandas.read_csv`` keywords a config may set.
 
     :meth:`CsvReader.read` forwards every option except ``path`` straight to
-    pandas, so the accepted set is written down rather than left open: a
-    misspelled keyword is then a config error instead of a silently different
-    parse. Widening the list is a one-line change here.
+    pandas, so this is an allow-list, not a hint: a keyword absent from it is
+    a config error rather than a silently different parse. That makes the list
+    load-bearing in both directions — it has to be narrow enough to catch a
+    typo and wide enough for a real CSV, so it covers the ordinary parsing,
+    typing, row-selection, missing-value and number/date keywords below, and
+    the README reproduces it in full.
+
+    What is missing is missing deliberately, on one rule: an option may
+    describe the data, never reach past it.
+
+    * ``converters`` (and, on pandas 2.x, ``date_parser``) take callables. A
+      config file in this project can never execute Python, and an allow-list
+      that admitted a callable would hand that back.
+    * ``usecols``, ``skiprows`` and ``on_bad_lines`` also accept callables in
+      pandas; the types below are narrow enough to refuse those forms while
+      keeping the useful ones.
+    * ``storage_options`` carries filesystem credentials and aims the read at
+      a remote host — the clearest case of reaching past the data.
+    * ``iterator`` and ``chunksize`` make ``read_csv`` return a reader rather
+      than a DataFrame, which breaks this connector's contract halfway
+      through a run: exactly the failure the allow-list exists to prevent.
+    * ``dialect`` names an object in the ``csv`` module instead of describing
+      the file, and everything it can set is already reachable through
+      ``sep``, ``quotechar``, ``quoting``, ``doublequote``, ``escapechar``,
+      ``lineterminator`` and ``skipinitialspace``.
+    * ``memory_map`` tunes how the file handle is opened, not how the bytes
+      are parsed; a config that wants it is describing the host, not the data.
+
+    Widening the list is still a one-line change — but it is a change to the
+    README's documented set as well, which must stay identical to this one.
     """
 
+    # Delimiting and quoting.
     sep: str | None = None
     delimiter: str | None = None
+    quotechar: str = '"'
+    quoting: int = Field(default=0, ge=0, le=3, description="A csv.QUOTE_* constant.")
+    doublequote: bool = True
+    escapechar: str | None = None
+    lineterminator: str | None = None
+    skipinitialspace: bool = False
+
+    # Columns, headers and dtypes.
     header: Literal["infer"] | int | list[int] | None = "infer"
     names: list[str] | None = None
     usecols: list[str] | list[int] | None = None
+    index_col: int | str | None = None
     dtype: str | dict[str, str] | None = None
-    encoding: str | None = None
+    dtype_backend: Literal["numpy_nullable", "pyarrow"] | None = None
+    true_values: list[str] | None = None
+    false_values: list[str] | None = None
+
+    # Which rows are read at all.
     skiprows: int | list[int] | None = None
+    skipfooter: int = 0
     nrows: int | None = None
+    skip_blank_lines: bool = True
+    comment: str | None = None
+    on_bad_lines: Literal["error", "warn", "skip"] = "error"
+
+    # Missing values.
     na_values: str | list[str] | None = None
     keep_default_na: bool = True
-    parse_dates: bool | list[str] | None = None
-    index_col: int | str | None = None
-    comment: str | None = None
-    quotechar: str = '"'
-    escapechar: str | None = None
+    na_filter: bool = True
+
+    # Numbers and dates.
     thousands: str | None = None
     decimal: str = "."
+    float_precision: Literal["high", "legacy", "round_trip"] | None = None
+    parse_dates: bool | list[str] | None = None
+    date_format: str | dict[str, str] | None = None
+    dayfirst: bool = False
+    cache_dates: bool = True
+
+    # Reading the file itself.
+    encoding: str | None = None
+    encoding_errors: str = "strict"
     compression: str | None = "infer"
-    on_bad_lines: Literal["error", "warn", "skip"] = "error"
+    engine: Literal["c", "python", "pyarrow"] | None = None
+    low_memory: bool = True
 
 
 class CsvWriterOptions(_PathOptions):
