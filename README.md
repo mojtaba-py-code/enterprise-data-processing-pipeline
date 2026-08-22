@@ -149,10 +149,11 @@ Each plugin owns the schema of its own `options` block, and the block is
 validated against it when the config is loaded — a misspelled key such as
 `delimeter:` is an error before the first row is read, never a silently
 different parse. A `csv` source accepts the common `pandas.read_csv`
-keywords (`sep`, `header`, `names`, `usecols`, `dtype`, `encoding`,
-`skiprows`, `nrows`, `na_values`, `parse_dates`, `index_col`, `comment`,
-`quotechar`, `escapechar`, `thousands`, `decimal`, `compression`,
-`on_bad_lines`); a `json` source accepts `lines`.
+keywords (`sep`, `delimiter`, `header`, `names`, `usecols`, `dtype`,
+`encoding`, `skiprows`, `nrows`, `na_values`, `keep_default_na`,
+`parse_dates`, `index_col`, `comment`, `quotechar`, `escapechar`,
+`thousands`, `decimal`, `compression`, `on_bad_lines`); a `json` source
+accepts `lines`.
 
 ### Built-in transforms
 
