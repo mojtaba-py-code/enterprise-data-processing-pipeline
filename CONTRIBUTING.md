@@ -24,7 +24,7 @@ These are exactly the steps CI runs, so run them locally first:
 ```bash
 ruff check src tests
 mypy src
-pytest -q --cov=pipeline --cov-report=term-missing
+pytest -q --cov=pipeline --cov-report=term-missing --cov-fail-under=85
 ```
 
 CI runs the same on Python 3.11 and 3.12.

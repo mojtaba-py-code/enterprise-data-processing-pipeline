@@ -37,7 +37,10 @@ jobs:
         run: mypy src
 
       - name: Test (pytest)
-        run: pytest -q --cov=pipeline --cov-report=term-missing
+        # The floor is a ratchet, not a target: coverage sits in the low 90s,
+        # and a change that pushes it under 85% has to be argued for rather
+        # than merged unnoticed.
+        run: pytest -q --cov=pipeline --cov-report=term-missing --cov-fail-under=85
 
   docker:
     name: Build container image
