@@ -4,6 +4,10 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # A dependency does not have to change for it to become vulnerable, so the
+  # audit runs weekly against whatever the advisory databases know by then.
+  schedule:
+    - cron: "0 6 * * 1"
 
 # The pipeline only reads the checkout.  Any job needing more asks for it
 # explicitly at the job level.
