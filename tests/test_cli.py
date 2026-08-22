@@ -50,6 +50,30 @@ def test_run_command_json(tmp_path, capsys):
     assert out_path.is_file()
 
 
+def test_run_accepts_a_positional_config(tmp_path, capsys):
+    out_path = tmp_path / "out.csv"
+    cfg = _write_config(tmp_path, out_path)
+    assert main(["run", str(cfg), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["rows_out"] == 1
+
+
+def test_validate_accepts_a_positional_config(tmp_path, capsys):
+    cfg = _write_config(tmp_path, tmp_path / "out.csv")
+    assert main(["validate", str(cfg)]) == 0
+    assert "is valid" in capsys.readouterr().out
+
+
+def test_run_without_a_config_path_returns_error(capsys):
+    assert main(["run"]) == 1
+    assert "config path is required" in capsys.readouterr().err
+
+
+def test_config_given_both_ways_returns_error(tmp_path, capsys):
+    cfg = _write_config(tmp_path, tmp_path / "out.csv")
+    assert main(["validate", str(cfg), "--config", str(cfg)]) == 1
+    assert "once" in capsys.readouterr().err
+
+
 def test_run_missing_config_returns_error(capsys):
     assert main(["run", "--config", "nope.yaml"]) == 1
     assert "error:" in capsys.readouterr().err

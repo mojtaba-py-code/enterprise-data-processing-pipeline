@@ -78,6 +78,9 @@ edp validate --config configs/pipeline.example.yaml
 
 # Run the pipeline (human summary; add --json for machine output)
 edp run --config configs/pipeline.example.yaml
+
+# The config path may also be given positionally
+edp run configs/pipeline.example.yaml
 ```
 
 Equivalent module form (no install needed): `PYTHONPATH=src python -m pipeline run -c configs/pipeline.example.yaml`.
