@@ -42,7 +42,20 @@ jobs:
           # character class, and no class in the set accepts "[". Keep that
           # property when adding a pattern: end the literal part at a "[".
           pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{32,}|SECRET_ACCESS_KEY[[:space:]]*[:=][[:space:]]*[A-Za-z0-9/+]{20,}'
-          if git grep -InE -e "$pattern" $(git rev-list --all); then
+          # The revisions arrive on stdin instead of being spliced onto the
+          # command line by $(git rev-list --all). That list grows by one SHA
+          # per commit and has no upper bound, so a long-lived repository would
+          # eventually push the command past the OS argument-length limit and
+          # fail the job with an exec error — a scan that cannot run, wearing
+          # the costume of a CI bug. xargs splits the revisions into as many
+          # invocations as the limit requires, so history size cannot break it.
+          #
+          # The captured output decides, not the exit status: xargs answers 123
+          # whenever any batch matched nothing, which is the ordinary case, so
+          # its status cannot tell "clean" apart from "found something".
+          hits="$(git rev-list --all | xargs -r git grep -InE -e "$pattern")" || true
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits"
             echo "::error::a credential-shaped string is committed to this repository"
             echo "Rotate the credential first — removing the line does not unpublish it."
             exit 1
