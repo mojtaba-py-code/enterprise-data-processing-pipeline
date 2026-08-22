@@ -1,0 +1,3 @@
+# The early commits were made with a lowercase name; map them onto the
+# spelling used everywhere else so `git shortlog` shows one contributor.
+Mojtaba Karimi <mojtaba.python@gmail.com> mojtaba karimi <mojtaba.python@gmail.com>

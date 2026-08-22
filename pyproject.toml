@@ -9,7 +9,7 @@ description = "A config-driven, plugin-based enterprise data processing pipeline
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Mojtaba" }]
+authors = [{ name = "Mojtaba Karimi" }]
 keywords = ["etl", "data-pipeline", "data-engineering", "pandas", "enterprise"]
 dependencies = [
     "pandas>=2.0",
