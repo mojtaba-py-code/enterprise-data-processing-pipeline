@@ -33,8 +33,16 @@ jobs:
       - name: Look for credential-shaped strings in every commit
         run: |
           set -uo pipefail
+          # Nothing is exempt from the scan, this workflow least of all: a CI
+          # file is one of the likelier places for a token to be pasted while
+          # someone is debugging a job, and an exempted file stays invisible
+          # for the rest of the history. The exemption was never needed — no
+          # alternative below can match the line that defines it, because
+          # every literal prefix in it runs straight into a "[" that opens a
+          # character class, and no class in the set accepts "[". Keep that
+          # property when adding a pattern: end the literal part at a "[".
           pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{32,}|SECRET_ACCESS_KEY[[:space:]]*[:=][[:space:]]*[A-Za-z0-9/+]{20,}'
-          if git grep -InE -e "$pattern" $(git rev-list --all) -- ':!.github/workflows/security.yml'; then
+          if git grep -InE -e "$pattern" $(git rev-list --all); then
             echo "::error::a credential-shaped string is committed to this repository"
             echo "Rotate the credential first — removing the line does not unpublish it."
             exit 1
