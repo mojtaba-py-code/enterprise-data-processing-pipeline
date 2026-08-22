@@ -21,6 +21,15 @@ ENV/
 .env.*
 !.env.example
 
+# Keys & certificates (a leaked key is not fixed by deleting the file)
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+credentials.json
+
 # Databases
 *.db
 *.sqlite
