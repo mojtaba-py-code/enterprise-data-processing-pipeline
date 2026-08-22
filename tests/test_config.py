@@ -36,6 +36,62 @@ def test_unknown_field_is_rejected():
         parse_config({**MINIMAL, "bogus": 1})
 
 
+def test_known_connector_option_is_accepted():
+    raw = {**MINIMAL, "source": {"type": "csv", "options": {"path": "in.csv", "sep": ";"}}}
+    cfg = parse_config(raw)
+    assert cfg.source.options["sep"] == ";"
+
+
+def test_unknown_connector_option_is_rejected():
+    # 'delimeter' is a plausible typo that pandas would reject at read time,
+    # long after the run started.
+    raw = {**MINIMAL, "source": {"type": "csv", "options": {"path": "in.csv", "delimeter": ";"}}}
+    with pytest.raises(ConfigError, match="delimeter"):
+        parse_config(raw)
+
+
+def test_option_the_connector_would_ignore_is_rejected():
+    # JsonReader reads only 'lines'; a csv keyword here used to be dropped in
+    # silence, which is the failure mode this guards against.
+    raw = {**MINIMAL, "source": {"type": "json", "options": {"path": "in.json", "sep": ";"}}}
+    with pytest.raises(ConfigError, match="sep"):
+        parse_config(raw)
+
+
+def test_transform_options_are_validated():
+    ok = parse_config(
+        {**MINIMAL, "transforms": [{"type": "str_case", "options": {"columns": ["e"]}}]}
+    )
+    assert ok.transforms[0].options["columns"] == ["e"]
+
+    with pytest.raises(ConfigError, match="mode"):
+        parse_config(
+            {
+                **MINIMAL,
+                "transforms": [
+                    {"type": "str_case", "options": {"columns": ["e"], "mode": "sideways"}}
+                ],
+            }
+        )
+
+
+def test_transform_option_error_names_its_position():
+    raw = {
+        **MINIMAL,
+        "transforms": [
+            {"type": "select", "options": {"columns": ["a"]}},
+            {"type": "filter", "options": {"column": "a", "op": "~~", "value": 1}},
+        ],
+    }
+    with pytest.raises(ConfigError, match=r"transforms\[1\]"):
+        parse_config(raw)
+
+
+def test_unknown_plugin_type_is_rejected():
+    with pytest.raises(ConfigError, match="Unknown reader"):
+        parse_config({**MINIMAL, "source": {"type": "nosuch", "options": {}}})
+
+
 def test_bad_log_level_is_rejected():
     with pytest.raises(ConfigError):
         parse_config({**MINIMAL, "observability": {"log_level": "LOUD"}})

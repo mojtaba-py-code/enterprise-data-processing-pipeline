@@ -12,14 +12,20 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from pipeline.core.exceptions import ConfigError
+from pipeline.core.exceptions import ConfigError, RegistryError
+from pipeline.core.registry import Registry
 
 FieldType = Literal["int", "float", "str", "bool", "datetime"]
 ErrorPolicy = Literal["fail", "drop", "quarantine"]
 
 
 class StageConfig(BaseModel):
-    """A pluggable stage identified by ``type`` plus free-form ``options``."""
+    """A pluggable stage identified by ``type`` plus plugin-defined ``options``.
+
+    ``options`` is untyped here on purpose — the core cannot know what a
+    third-party connector takes. The plugin declares its own model and
+    :func:`parse_config` validates the block against it.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -110,6 +116,47 @@ def parse_config(raw: Any, *, source: str = "<dict>") -> PipelineConfig:
     # Support an optional top-level "pipeline:" wrapper for readability.
     data = raw.get("pipeline", raw) if "pipeline" in raw and "source" not in raw else raw
     try:
-        return PipelineConfig.model_validate(data)
+        config = PipelineConfig.model_validate(data)
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration in {source}:\n{exc}") from exc
+    _validate_plugin_options(config, source=source)
+    return config
+
+
+def _validate_plugin_options(config: PipelineConfig, *, source: str) -> None:
+    """Check each stage against the option model of the plugin it names.
+
+    Without this an unknown key is either forwarded verbatim to pandas or
+    silently dropped, depending on the connector — the opposite of the
+    fail-loudly contract a config file is supposed to have.
+    """
+    # Imported here so the core package does not depend on the plugin
+    # packages at import time.
+    from pipeline.connectors import reader_registry, writer_registry
+    from pipeline.transforms import transform_registry
+
+    _validate_stage(config.source, reader_registry, "source", source)
+    _validate_stage(config.sink, writer_registry, "sink", source)
+    for index, stage in enumerate(config.transforms):
+        _validate_stage(stage, transform_registry, f"transforms[{index}]", source)
+
+
+def _validate_stage(
+    stage: StageConfig, registry: Registry[Any], where: str, source: str
+) -> None:
+    """Resolve one stage's plugin and validate its ``options`` block."""
+    try:
+        plugin = registry.get(stage.type)
+    except RegistryError as exc:
+        raise ConfigError(f"Invalid {where} in {source}: {exc}") from exc
+
+    # A plugin that declares no model keeps the old free-form behaviour.
+    model: type[BaseModel] | None = getattr(plugin, "options_model", None)
+    if model is None:
+        return
+    try:
+        model.model_validate(stage.options)
+    except ValidationError as exc:
+        raise ConfigError(
+            f"Invalid options for {where} '{stage.type}' in {source}:\n{exc}"
+        ) from exc

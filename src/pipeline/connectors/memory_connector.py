@@ -2,12 +2,21 @@
 from __future__ import annotations
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from pipeline.connectors.base import Reader, Writer, reader_registry, writer_registry
 from pipeline.core.exceptions import ConnectorError
 
 # Shared stores keyed by name so a reader and writer can share a buffer.
 _STORES: dict[str, pd.DataFrame] = {}
+
+
+class MemoryOptions(BaseModel):
+    """Both memory connectors take the store ``key`` and nothing else."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, description="Name of the in-memory store.")
 
 
 def set_store(key: str, df: pd.DataFrame) -> None:
@@ -31,6 +40,8 @@ def clear_stores() -> None:
 class MemoryReader(Reader):
     """Read a DataFrame previously placed with :func:`set_store`."""
 
+    options_model = MemoryOptions
+
     def read(self) -> pd.DataFrame:
         key = self.options.get("key")
         if not isinstance(key, str):
@@ -43,6 +54,8 @@ class MemoryReader(Reader):
 @writer_registry.register("memory")
 class MemoryWriter(Writer):
     """Write a DataFrame into an in-memory store retrievable via :func:`get_store`."""
+
+    options_model = MemoryOptions
 
     def write(self, df: pd.DataFrame) -> None:
         key = self.options.get("key")

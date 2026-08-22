@@ -7,14 +7,21 @@ orchestrator can build them straight from config.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 import pandas as pd
+from pydantic import BaseModel
 
 from pipeline.core.registry import Registry
 
 
 class Reader(ABC):
     """Reads a :class:`pandas.DataFrame` from a source."""
+
+    #: Pydantic model describing the options this reader accepts. Loading a
+    #: config validates ``options`` against it, so an unknown key is reported
+    #: before any data is read instead of being forwarded or dropped.
+    options_model: ClassVar[type[BaseModel] | None] = None
 
     def __init__(self, **options: object) -> None:
         self.options = options
@@ -26,6 +33,9 @@ class Reader(ABC):
 
 class Writer(ABC):
     """Writes a :class:`pandas.DataFrame` to a sink."""
+
+    #: Pydantic model describing the options this writer accepts.
+    options_model: ClassVar[type[BaseModel] | None] = None
 
     def __init__(self, **options: object) -> None:
         self.options = options

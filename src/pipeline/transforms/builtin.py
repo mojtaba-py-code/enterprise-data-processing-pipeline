@@ -6,9 +6,10 @@ arbitrary user code, so a config file can never execute Python. Rich behaviour
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pipeline.core.context import PipelineContext
 from pipeline.core.exceptions import TransformError
@@ -22,6 +23,18 @@ _CAST_DTYPES: dict[str, str] = {
 }
 
 
+class _TransformOptions(BaseModel):
+    """Base for the per-transform option models.
+
+    Each transform owns the schema of its own ``options`` block; the core only
+    knows that one exists. Unknown keys are refused here, so a typo in a config
+    is an error at load time rather than a transform that quietly does
+    something else.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
 def _require_columns(df: pd.DataFrame, columns: list[str], transform: str) -> None:
     missing = [c for c in columns if c not in df.columns]
     if missing:
@@ -31,9 +44,15 @@ def _require_columns(df: pd.DataFrame, columns: list[str], transform: str) -> No
         )
 
 
+class RenameOptions(_TransformOptions):
+    columns: dict[str, str] = Field(min_length=1, description="Old name -> new name.")
+
+
 @transform_registry.register("rename")
 class Rename(Transform):
     """Rename columns using an ``old -> new`` mapping."""
+
+    options_model = RenameOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         mapping = self.options.get("columns")
@@ -43,9 +62,15 @@ class Rename(Transform):
         return df.rename(columns=mapping)
 
 
+class SelectOptions(_TransformOptions):
+    columns: list[str] = Field(min_length=1, description="Columns to keep, in order.")
+
+
 @transform_registry.register("select")
 class Select(Transform):
     """Keep only the listed columns, in order."""
+
+    options_model = SelectOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         columns = self.options.get("columns")
@@ -55,9 +80,15 @@ class Select(Transform):
         return df[columns].copy()
 
 
+class DropOptions(_TransformOptions):
+    columns: list[str] = Field(min_length=1, description="Columns to remove.")
+
+
 @transform_registry.register("drop")
 class Drop(Transform):
     """Drop the listed columns."""
+
+    options_model = DropOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         columns = self.options.get("columns")
@@ -67,9 +98,17 @@ class Drop(Transform):
         return df.drop(columns=columns)
 
 
+class DropNullsOptions(_TransformOptions):
+    columns: list[str] | None = Field(
+        default=None, description="Columns to check; all of them if unset."
+    )
+
+
 @transform_registry.register("drop_nulls")
 class DropNulls(Transform):
     """Drop rows with nulls, optionally restricted to a subset of columns."""
+
+    options_model = DropNullsOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         subset = self.options.get("columns")
@@ -83,9 +122,17 @@ class DropNulls(Transform):
         return result
 
 
+class FillNaOptions(_TransformOptions):
+    values: dict[str, Any] = Field(
+        min_length=1, description="Column -> replacement value."
+    )
+
+
 @transform_registry.register("fillna")
 class FillNa(Transform):
     """Fill nulls per column using a ``column -> value`` mapping."""
+
+    options_model = FillNaOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         values = self.options.get("values")
@@ -95,9 +142,18 @@ class FillNa(Transform):
         return df.fillna(value=values)
 
 
+class CastOptions(_TransformOptions):
+    # The accepted types are _CAST_DTYPES plus the separately handled datetime.
+    columns: dict[str, Literal["int", "float", "str", "bool", "datetime"]] = Field(
+        min_length=1, description="Column -> target type."
+    )
+
+
 @transform_registry.register("cast")
 class Cast(Transform):
     """Cast columns to ``int``/``float``/``str``/``bool``/``datetime``."""
+
+    options_model = CastOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         columns = self.options.get("columns")
@@ -124,9 +180,18 @@ class Cast(Transform):
         )
 
 
+class DedupeOptions(_TransformOptions):
+    subset: list[str] | None = Field(
+        default=None, description="Key columns; the whole row if unset."
+    )
+    keep: Literal["first", "last", False] = "first"
+
+
 @transform_registry.register("dedupe")
 class Dedupe(Transform):
     """Drop duplicate rows, optionally keyed by a subset of columns."""
+
+    options_model = DedupeOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         subset = self.options.get("subset")
@@ -154,9 +219,25 @@ _OPS = {
 }
 
 
+class FilterOptions(_TransformOptions):
+    column: str = Field(min_length=1)
+    op: str
+    value: Any = None
+
+    @field_validator("op")
+    @classmethod
+    def _known_op(cls, value: str) -> str:
+        # Read off _OPS so the config schema cannot drift from the implementation.
+        if value not in _OPS:
+            raise ValueError(f"op must be one of {sorted(_OPS)}")
+        return value
+
+
 @transform_registry.register("filter")
 class Filter(Transform):
     """Keep rows where ``column <op> value`` holds."""
+
+    options_model = FilterOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         column = self.options.get("column")
@@ -176,9 +257,18 @@ class Filter(Transform):
         return result
 
 
+class SplitColumnOptions(_TransformOptions):
+    source: str = Field(min_length=1)
+    target: str = Field(min_length=1)
+    delimiter: str = " "
+    index: int = 0
+
+
 @transform_registry.register("split_column")
 class SplitColumn(Transform):
     """Split a string column by a delimiter and take one part into ``target``."""
+
+    options_model = SplitColumnOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         source = self.options.get("source")
@@ -196,9 +286,16 @@ class SplitColumn(Transform):
         return result
 
 
+class StrCaseOptions(_TransformOptions):
+    columns: list[str] = Field(min_length=1)
+    mode: Literal["lower", "upper", "title", "strip"] = "lower"
+
+
 @transform_registry.register("str_case")
 class StrCase(Transform):
     """Apply ``lower``/``upper``/``title``/``strip`` to string columns."""
+
+    options_model = StrCaseOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         columns = self.options.get("columns")
@@ -220,9 +317,16 @@ class StrCase(Transform):
         return result
 
 
+class AddColumnOptions(_TransformOptions):
+    name: str = Field(min_length=1)
+    value: Any
+
+
 @transform_registry.register("add_column")
 class AddColumn(Transform):
     """Add a constant-valued column."""
+
+    options_model = AddColumnOptions
 
     def apply(self, df: pd.DataFrame, context: PipelineContext) -> pd.DataFrame:
         name = self.options.get("name")

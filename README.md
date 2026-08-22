@@ -22,7 +22,7 @@ never requires touching the core.
 - 🛟 **Error policies** — `fail`, `drop`, or `quarantine` invalid rows to a separate file.
 - 🔒 **Safe by design** — declarative transforms only; a config file can never execute arbitrary code.
 - 📈 **Structured logging** — human-friendly text or JSON for log aggregators.
-- 🧪 **Fully tested & typed** — 48 tests, `ruff`-clean, `mypy`-clean.
+- 🧪 **Fully tested & typed** — 58 tests, `ruff`-clean, `mypy`-clean.
 - 🐳 **Docker + CI** — reproducible runs and a GitHub Actions matrix (3.11 / 3.12).
 
 ---
@@ -145,6 +145,15 @@ observability:
   log_format: text           # text | json
 ```
 
+Each plugin owns the schema of its own `options` block, and the block is
+validated against it when the config is loaded — a misspelled key such as
+`delimeter:` is an error before the first row is read, never a silently
+different parse. A `csv` source accepts the common `pandas.read_csv`
+keywords (`sep`, `header`, `names`, `usecols`, `dtype`, `encoding`,
+`skiprows`, `nrows`, `na_values`, `parse_dates`, `index_col`, `comment`,
+`quotechar`, `escapechar`, `thousands`, `decimal`, `compression`,
+`on_bad_lines`); a `json` source accepts `lines`.
+
 ### Built-in transforms
 
 | Transform | Purpose | Key options |
@@ -184,6 +193,10 @@ class UppercaseAll(Transform):
 
 Then reference `type: uppercase_all` in your config. No core changes required.
 
+Set `options_model` on the class — any pydantic model with `extra="forbid"` —
+to have the `options` block of every config that names the plugin validated
+against it at load time. A plugin without one accepts its options unchecked.
+
 ---
 
 ## Development
@@ -215,7 +228,7 @@ src/pipeline/
 └── cli.py           # command-line entry point
 configs/             # example pipeline YAML
 data/sample/         # sample input data
-tests/               # 48 unit + integration tests
+tests/               # 58 unit + integration tests
 ```
 
 ## License
