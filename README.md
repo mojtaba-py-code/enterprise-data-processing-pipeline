@@ -259,7 +259,7 @@ src/pipeline/
 └── cli.py           # command-line entry point
 configs/             # example pipeline YAML
 data/sample/         # sample input data
-tests/               # 58 unit + integration tests
+tests/               # 76 unit + integration tests
 ```
 
 ## License
