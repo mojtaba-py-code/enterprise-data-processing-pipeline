@@ -1,0 +1,42 @@
+# Secret scanning, which ci.yml cannot do: bandit reads the code as it stands,
+# not what the history remembers. A credential that was committed and later
+# removed is still leaked, so every reachable commit is searched, not just HEAD.
+#
+# The scan is a plain grep on purpose — no third-party action, nothing to pin,
+# nothing to trust with a token.
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "30 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the point is to catch what was deleted from the tip.
+          fetch-depth: 0
+
+      - name: Look for credential-shaped strings in every commit
+        run: |
+          set -uo pipefail
+          pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{32,}|SECRET_ACCESS_KEY[[:space:]]*[:=][[:space:]]*[A-Za-z0-9/+]{20,}'
+          if git grep -InE -e "$pattern" $(git rev-list --all) -- ':!.github/workflows/security.yml'; then
+            echo "::error::a credential-shaped string is committed to this repository"
+            echo "Rotate the credential first — removing the line does not unpublish it."
+            exit 1
+          fi
+          echo "No credential-shaped strings found in $(git rev-list --all --count) commits."
